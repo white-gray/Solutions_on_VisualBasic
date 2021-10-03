@@ -1,0 +1,1245 @@
+﻿'файлы информации по трафику помещаются в папку
+'
+'файл ReportAbout8800xxxxxxxcalls.xlsm помещается в корень папки с данными по трафику
+'
+'при запуске ReportAbout8800xxxxxxxcalls.xlsm, запрашиваются год, месяц, число начала и конца рассматриваемого периода
+'
+'далее макрос-программа создаёт файл Репорт 8(800)xxxxxxx за xx.xx.xxxx – xx.xx.xxxx.xlsx  с таблицей, куда будут помещены результаты 
+'
+'по-одному читает файлы  информации о трафике по датам указанного периода (дата указана в названии файла)
+'
+'берёт из них нужные данные, суммирует их
+'
+'закрывает каждый файл после сбора данных с него
+'
+'по окончании просмотра файлов, вносит полученные данные их в требуемые места создаваемой таблицы
+'
+'в конце работы закрывает ReportAbout8800xxxxxxxcalls.xlsm, и оставляет файл Репорт 8(800)xxxxxxx за xx.xx.xxxx – xx.xx.xxxx.xlsx с готовой таблицей
+'
+'-------------------------------------------------------------------------------------------------------------------
+
+
+
+Attribute VB_Name = "Module1"
+Sub ReportAbout8800xxxxxxxcalls()
+'
+' ReportAbout8800xxxxxxxcalls
+'   создание репорта о поступивших звонках на номер 8800xxxxxxx, куда они поступили, и кем были отведены (не отвечены)
+'
+
+
+'переменные
+Dim dayOt, monthOt, defMon, defDay, dayDo, monthDo As Byte
+Dim defYear, yearOt, yearDo As Integer
+Dim MyDate, Temp As Integer
+
+MyDate = Format(Now, "dd.mm.yyyy")
+
+'----------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------
+'ПОДГОТОВИТЕЛЬНО. ВВОД ПЕРИОДА РАСЧЁТА.
+'----------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------
+'  ввод даты "ОТ"
+    defYear = Year(MyDate) - 2000
+    defMon = Month(MyDate) - 2
+    defDay = 1
+yearOt:
+    yearOt = InputBox("репорты с какого года (начиная с 2016; ввести только две цифры из 20хх):", "Рассматриваем c ", defYear)
+    If yearOt < 16 Or yearOt > 99 Then GoTo yearOt
+                                                                            'MsgBox yearOt, , "yearOt = "
+monthOt:
+    monthOt = InputBox("репорты с какого месяца (номер) : ", "Рассматриваем c ", defMon)
+    If monthOt < 1 Or monthOt > 12 Then GoTo monthOt
+                                                                            'MsgBox monthOt, , "monthOt = "
+dayOt:
+    dayOt = InputBox("репорты с какого дня месяца (число): ", "Рассматриваем c ", defDay)
+    If dayOt < 1 Or dayOt > 31 Then GoTo dayOt
+                                                                            'MsgBox dayOt, , "dayOt = "
+
+'  ввод даты "ДО"
+                                                                            'MsgBox MyDate, , "MyDate = "
+                                                                            'MsgBox Year(MyDate), , "Year(MyDate) = "
+                                                                            'MsgBox Month(MyDate), , "Month(MyDate) = "
+                                                                            'MsgBox Day(MyDate), , "Day(MyDate) = "
+    defYear = Year(MyDate) - 2000
+    defMon = Month(MyDate) - 1
+                                                                            'MsgBox defMon, , "defMon = "
+    defDay = 30
+                                                                            'MsgBox defDay, , "defDay = "
+yearDo:
+    yearDo = InputBox("репорты по какой год (начиная с 2016; ввести только две цифры из 20хх): ", "Рассматриваем по ", defYear)
+    If yearDo < 16 Or yearDo > 99 Or yearDo < yearOt Then GoTo yearDo
+                                                                            'MsgBox yearDo, , "yearDo = "
+    yearDo = 2000 + yearDo
+                                                                            'MsgBox yearDo, , "now (+2000) yearDo = "
+    yearOt = 2000 + yearOt
+                                                                            'MsgBox yearOt, , "now (+2000) yearOt = "
+monthDo:
+    monthDo = InputBox("репорты по какой месяц (номер): ", "Рассматриваем по ", defMon)
+    If monthDo < 1 Or monthDo > 12 Then GoTo monthDo
+    If yearDo = yearOt And monthDo < monthOt Then GoTo monthDo
+dayDo:
+    dayDo = InputBox("репорты по какой день месяца (число): ", "Рассматриваем по ", defDay)
+    If dayDo < 1 Or dayDo > 31 Then GoTo dayDo
+    If yearDo = yearOt And monthDo = monthOt And dayDo < dayOt Then GoTo dayDo
+
+    
+'-------------------------------------------------------------------------------------------------------------------
+'-------------------------------------------------------------------------------------------------------------------
+
+
+' сообщение "Please wait!"
+
+Range("G11").Font.Size = 63
+Range("G11").Font.Bold = True
+Range("G11").Font.Underline = xlUnderlineStyleSingle
+Range("G11").Font.Italic = True
+
+Range("G11") = "Please wait! "
+
+'=================================================================================================
+' отключение обновления данных на экране и автоматических вычислений - отключаем видимость работы
+'=================================================================================================
+' отключение обновления данных на экране, в момент выполнения макроса. Это позволит Excel сохранить вычислительные мощности компьютера
+Application.ScreenUpdating = False
+' отключение автоматических вычислений для увеличения скоростипроцесса
+Application.Calculation = xlCalculationManual
+
+'----------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------
+'СОЗДАЁТСЯ ОТДЕЛЬНЫЙ ФАЙЛ *.xls И В НЁМ ПРОПИСЫВАЮТСЯ ПОЛЯ ТАБЛИЦЫ
+'----------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------
+'Создаём и сохраняем новый документ
+    
+    Workbooks.Add (xlWBATWorksheet)
+    
+    Columns("A:A").ColumnWidth = 7
+    Columns("B:B").ColumnWidth = 12
+    Columns("C:C").ColumnWidth = 19
+    Columns("D:D").ColumnWidth = 23
+    Columns("E:E").ColumnWidth = 7
+    
+'    Rows("9:9").RowHeight = 5
+    Cells.Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+        .RowHeight = 15
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "обычный"
+        .Size = 10
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+    
+' строка "Звонки на номер 8(800)xxx-xxxx"
+    Range("A1").Select
+    ActiveCell.FormulaR1C1 = "Звонки на номер 8(800)xxx-xxxx"
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный"
+        .Size = 17
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .Color = -11489280
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+    With Selection
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+        .RowHeight = 30
+    End With
+
+
+' строки "Статистика по количеству звонков" и даты начала - конца рассматриваемого периода
+    Range("B2:D4").Select
+    With Selection
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный"
+        .Size = 10
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+    Range("C2").FormulaR1C1 = "Статистика по количеству звонков"
+    Range("C3").FormulaR1C1 = "   Начало периода"
+    Range("D3").FormulaR1C1 = dayOt & "." & monthOt & "." & yearOt
+    Range("C4").FormulaR1C1 = "   Конец периода"
+    Range("D4").FormulaR1C1 = dayDo & "." & monthDo & "." & yearDo
+    
+' строка "Звонящий представился клиентом, и вызов направлен на "Группа операторов КЦ" 8(812)493-2317"
+    Range("A6:D6").Select
+    With Selection
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+        .RowHeight = 45
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "обычный"
+        .Size = 12
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleSingle
+        .ThemeColor = xlThemeColorAccent5
+        .Color = -16777024
+        .TintAndShade = -0.249977111117893
+        .ThemeFont = xlThemeFontNone
+    End With
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "Звонящий представился клинтом, и вызов направлен" & Chr(10) & "на `Группа операторов КЦ` 8(812)493-2317"
+
+
+    
+    
+' строка "Звонящий представился сотрудником компании Maykor"
+    Range("A7:A34").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 90
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "обычный"
+        .Size = 12
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleSingle
+        .ThemeColor = xlThemeColorAccent5
+        .Color = -16777024
+        .TintAndShade = -0.249977111117893
+        .ThemeFont = xlThemeFontNone
+    End With
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "Звонящий представился сотрудником компании Maykor"
+    
+    
+    
+    
+    
+' ячейки оглавлений столбца таблицы в группе "Звонящий представился сотрудником компании Maykor"
+'   Range("B7:B69").Select
+    Range("B7:B34").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 90
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный курсив"
+        .Size = 10
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+' строка "ДИСПЕТЧЕРСКАЯ СЛУЖБА МАКРОРЕГИОНА"
+    Range("B7:B14").Select
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "ДИСПЕТЧЕРСКАЯ СЛУЖБА МАКРОРЕГИОНА"
+' строка "ТЕХНИЧЕСКАЯ ПОДДЕРЖКА"
+    Range("B15:B24").Select
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "ТЕХНИЧЕСКАЯ ПОДДЕРЖКА"
+' строка "Региональная поддержка ЕАС ОПС по Федеральным округам"
+    Range("B25:B34").Select
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "Региональная поддержка ЕАС ОПС по Федеральным округам"
+
+    
+    
+    
+    
+    ' ячейки оглавлений столбца таблицы в группе "ДИСПЕТЧЕРСКАЯ СЛУЖБА МАКРОРЕГИОНА"
+'       Range("C7:C38").Select
+        Range("C7:D14").Select
+        With Selection
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+            .WrapText = True
+            .Orientation = 0
+            .AddIndent = False
+            .IndentLevel = 0
+            .ShrinkToFit = False
+            .ReadingOrder = xlContext
+            .MergeCells = False
+        End With
+        With Selection.Font
+            .Name = "Arial"
+            .FontStyle = "полужирный курсив"
+            .Size = 10
+            .Strikethrough = False
+            .Superscript = False
+            .Subscript = False
+            .OutlineFont = False
+            .Shadow = False
+            .Underline = xlUnderlineStyleNone
+            .ThemeColor = xlThemeColorLight1
+            .TintAndShade = 0
+            .ThemeFont = xlThemeFontNone
+        End With
+    ' строка "Макрорегион Столица"
+        Range("C7:D7").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "Макрорегион Столица"
+        ' номера операторов
+'           Range("D7").FormulaR1C1 = "Operator040"
+'           Range("D8").FormulaR1C1 = "Operator041"
+'           Range("D9").FormulaR1C1 = "Operator042"
+'           Range("D10").FormulaR1C1 = "Operator043"
+'           Range("D11").FormulaR1C1 = "Operator044"
+'           Range("D12").FormulaR1C1 = "Operator045"
+'           Range("D13").FormulaR1C1 = "Operator047"
+    ' строка "СЗМО"
+        Range("C8:D8").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "СЗМО"
+        ' номера операторов
+'           Range("D14").FormulaR1C1 = "Operator066"
+'           Range("D15").FormulaR1C1 = "Operator067"
+'           Range("D16").FormulaR1C1 = "Operator068"
+'           Range("D17").FormulaR1C1 = "Operator069"
+    ' строка "ПМО"
+        Range("C9:D9").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ПМО"
+    ' строка "УМО"
+        Range("C10:D10").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "УМО"
+        ' номера операторов
+'           Range("D19").FormulaR1C1 = "Operator070"
+'           Range("D20").FormulaR1C1 = "Operator071"
+'           Range("D21").FormulaR1C1 = "Operator072"
+'           Range("D22").FormulaR1C1 = "Operator073
+'           Range("D23").FormulaR1C1 = "Operator074
+    ' строка "СМО"
+        Range("C11:D11").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "СМО"
+        ' номера операторов
+'           Range("D24").FormulaR1C1 = "Operator080"
+'           Range("D25").FormulaR1C1 = "Operator081"
+'           Range("D26").FormulaR1C1 = "Operator082"
+'           Range("D27").FormulaR1C1 = "Operator083
+'           Range("D28").FormulaR1C1 = "Operator084
+    ' строка "ДВМО"
+        Range("C12:D12").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ДВМО"
+        ' номера операторов
+'           Range("D29").FormulaR1C1 = "Operator080"
+'           Range("D30").FormulaR1C1 = "Operator081"
+'           Range("D31").FormulaR1C1 = "Operator082"
+'           Range("D32").FormulaR1C1 = "Operator083
+    ' строка "СКМО"
+        Range("C13:D13").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "СКМО"
+        ' номера операторов
+'           Range("D33").FormulaR1C1 = "Operator090"
+'           Range("D34").FormulaR1C1 = "Operator091"
+    ' строка "ЮМО"
+        Range("C14:D14").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ЮМО"
+        ' номера операторов
+'           Range("D35").FormulaR1C1 = "Operator036"
+'           Range("D36").FormulaR1C1 = "Operator037"
+'           Range("D37").FormulaR1C1 = "Operator038"
+'           Range("D38").FormulaR1C1 = "Operator039"
+                        
+            
+        
+    ' ячейки оглавлений столбца таблицы в группе "ТЕХНИЧЕСКАЯ ПОДДЕРЖКА"
+'       Range("C39:C58").Select
+        Range("C15:D25").Select
+        With Selection
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+            .WrapText = True
+            .Orientation = 0
+            .AddIndent = False
+            .IndentLevel = 0
+            .ShrinkToFit = False
+            .ReadingOrder = xlContext
+            .MergeCells = False
+        End With
+        With Selection.Font
+            .Name = "Arial"
+            .FontStyle = "полужирный курсив"
+            .Size = 10
+            .Strikethrough = False
+            .Superscript = False
+            .Subscript = False
+            .OutlineFont = False
+            .Shadow = False
+            .Underline = xlUnderlineStyleNone
+            .ThemeColor = xlThemeColorLight1
+            .TintAndShade = 0
+            .ThemeFont = xlThemeFontNone
+        End With
+    ' строка "ККТ"
+        Range("C15:D15").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ККТ"
+        ' кто в группе
+'           Range("D39").FormulaR1C1 = "Лепендин Геннадий, 77300(софтфон), "
+'           Range("D40").FormulaR1C1 = "Князев Андрей, 77301(софтфон), "
+'           Range("D41").FormulaR1C1 = "Поливаев Вячеслав, 77303(софтфон), "
+'           Range("D42").FormulaR1C1 = "Филонов Андрей, 77353(софтфон), 8(910)241-2017"
+    ' строка "Весы"
+        Range("C16:D16").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "Весы"
+        ' кто в группе
+'           Range("D43").FormulaR1C1 = "Князев Андрей, 77301(софтфон), "
+    ' строка "МНМ"
+        Range("C17:D17").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "МНМ"
+        ' кто в группе
+'           Range("D44").FormulaR1C1 = "Лепендин Геннадий, 77300(софтфон), "
+'           Range("D45").FormulaR1C1 = "Шаль Игорь, 77302(софтфон), "
+    ' строка "IT"
+'       Range("C46:C52").Select
+        Range("C18:C21").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "IT"
+        'строка "КМТ"
+'           Range("D46:D47").Select
+'           Selection.Merge
+'           ActiveCell.FormulaR1C1 = "КМТ"
+            Range("D18").FormulaR1C1 = "КМТ"
+            ' кто в группе
+'               Range("E46").FormulaR1C1 = "Логинов Анатолий, 175, "
+'               Range("E47").FormulaR1C1 = "Бельмас Павел, 260, "
+        'строка "АСО"
+'           Range("D48").Select
+'           ActiveCell.FormulaR1C1 = "АСО"
+            Range("D19").FormulaR1C1 = "АСО"
+            ' кто в группе
+'               Range("E48").FormulaR1C1 = "Павлов Константин, 263, "
+        'строка "Телефония"
+'           Range("D49:D51").Select
+'           Selection.Merge
+'           ActiveCell.FormulaR1C1 = "Телефония"
+            Range("D20").FormulaR1C1 = "Телефония"
+            ' кто в группе
+'               Range("E49").FormulaR1C1 = "Беляков Сергей, 323, "
+'               Range("E50").FormulaR1C1 = "Костюк Дмитрий, 399, "
+'               Range("E51").FormulaR1C1 = "Царев Александр, 397, "
+        'строка "АРМ"
+'           Range("D52").Select
+'           ActiveCell.FormulaR1C1 = "АРМ"
+            Range("D21").FormulaR1C1 = "АРМ"
+            ' кто в группе
+'               Range("E52").FormulaR1C1 = "Лавренов Александр, 157, "
+    ' строка "SCCM"
+        Range("C22:D22").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "SCCM"
+        ' кто в группе
+'           Range("D53").FormulaR1C1 = "Медведев Антон, 336, "
+'           Range("D54").FormulaR1C1 = "Кожерков Сергей, 214, "
+'           Range("D55").FormulaR1C1 = "Павлов Константин, 263, "
+    ' строка "Устройства самообслуживания"
+'       Range("C56:C58").Select
+        Range("C23:C24").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "Устройства самообслуживания"
+        'строка "POS-терминалы"
+'           Range("D56").FormulaR1C1 = "POS-терминалы"
+            Range("D23").FormulaR1C1 = "POS-терминалы"
+            ' кто в группе
+'               Range("E56").FormulaR1C1 = "Чувиров Алексей, 501, "
+        'строка "пл.Терм, киоски и СУО"
+'           Range("D57").FormulaR1C1 = "пл.Терм, киоски и СУО"
+            Range("D24").FormulaR1C1 = "пл.Терм, киоски и СУО"
+            ' кто в группе
+'               Range("E57").FormulaR1C1 = "Лепендин Геннадий, 77300(софтфон), "
+        'строка "СУО"
+'           Range("D58").FormulaR1C1 = "СУО"
+'           Range("D25").FormulaR1C1 = "СУО"
+            ' кто в группе
+'               Range("E58").FormulaR1C1 = "Лепендин Геннадий, 77300(софтфон), "
+
+
+                
+    ' ячейки оглавлений столбца таблицы в группе "Региональная поддержка ЕАС ОПС по Федеральным округам"
+'       Range("C59:C69").Select
+        Range("C25:D34").Select
+        With Selection
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+            .WrapText = True
+            .Orientation = 0
+            .AddIndent = False
+            .IndentLevel = 0
+            .ShrinkToFit = False
+            .ReadingOrder = xlContext
+            .MergeCells = False
+        End With
+        With Selection.Font
+            .Name = "Arial"
+            .FontStyle = "полужирный курсив"
+            .Size = 10
+            .Strikethrough = False
+            .Superscript = False
+            .Subscript = False
+            .OutlineFont = False
+            .Shadow = False
+            .Underline = xlUnderlineStyleNone
+            .ThemeColor = xlThemeColorLight1
+            .TintAndShade = 0
+            .ThemeFont = xlThemeFontNone
+        End With
+    ' строка "ЦФО и Столица"
+        Range("C25:D25").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ЦФО и Столица"
+        ' кто в группе
+'           Range("D59").FormulaR1C1 = "Лавренов Александр, 157, "
+'           Range("D60").FormulaR1C1 = "Глазов Игорь, 8(926)7377157"
+    ' строка "СЗФО"
+        Range("C26:D26").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "СЗФО"
+        ' кто в группе
+'           Range("D61").FormulaR1C1 = "Никулин Андрей, 8(981)153-7951"
+    ' строка "ЮФО"
+        Range("C27:D27").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ЮФО"
+        ' кто в группе
+'           Range("D62").FormulaR1C1 = "Негадов Владимир, 8(918)899-0114"
+    ' строка "СКФО"
+        Range("C28:D28").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "СКФО"
+        ' кто в группе
+'           Range("D63").FormulaR1C1 = "Шалаев Александр, 8(988)958-4018"
+    ' строка "ПФО"
+        Range("C29:D29").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ПФО"
+        ' кто в группе
+'           Range("D64").FormulaR1C1 = "Банаев Андрей, 8(910)106-8303"
+    ' строка "УФО"
+        Range("C30:D30").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "УФО"
+        ' кто в группе
+'           Range("D65").FormulaR1C1 = "Головатюк Александр, 8(912)676-8727"
+    ' строка "СФО"
+        Range("C31:D31").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "СФО"
+        ' кто в группе
+'           Range("D66").FormulaR1C1 = "Матвеев Алексей, 8(913)008-9864"
+    ' строка "ДВФО"
+        Range("C32:D32").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "ДВФО" '
+        ' кто в группе
+'           Range("D67").FormulaR1C1 = "Кревсун Дмитрий, 8(908)972-6410"
+    ' строка "Воронеж"
+        Range("C33:D33").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "Воронеж"
+        ' кто в группе
+'           Range("D68").FormulaR1C1 = "Филонов Андрей, 77353(софтфон), 8(910)241-2017"
+    ' строка "Самара"
+        Range("C34:D34").Select
+        Selection.Merge
+        ActiveCell.FormulaR1C1 = "Самара"
+        ' кто в группе
+'           Range("D69").FormulaR1C1 = "Князев Андрей, "
+
+    
+    
+    
+    
+' имя файла и его сохранение
+    Dim Filename As String
+    Filename = "Репорт 8(800)xxxxxxx за " & dayOt & "." & monthOt & "." & yearOt & " - " & dayDo & "." & monthDo & "." & yearDo & ".xlsx"
+    ActiveWorkbook.SaveAs Filename:=ThisWorkbook.Path & "\" & Filename, FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+                                                                         'MsgBox Filename, , "Filename = "
+                                                                         'MsgBox ThisWorkbook.Path, , "ThisWorkbook.Path = "
+                                                                         
+                                                                         
+                                                                         
+'----------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------
+'ПОДСЧЁТ
+'----------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------
+
+'   Расчёты
+    Dim g, m, d As Integer
+    Dim zero As String
+    Dim DSM, TP, EAS As Variant
+    Dim GrOperCC As Integer
+    GrOperCC = 0
+    DSM = Array(0, 0, 0, 0, 0, 0, 0, 0)
+    TP = Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    EAS = Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        ' задаются массивы со значениями:   0       1       2       3       4       5       6       7       8           9
+        '                   DSM             Stol    SZMO    PMO     UMO     SMO     DVMO    SKMO    YuMO
+        '                   TP              KKT     Scale   MNM     IT_KMT  IT_ASO  IT_Tel  IT_ARM  SCCM    DevSelf_POS DevSelf_Term&SUO
+        '                   EAS             Stol    SZFO    YuFO    SCFO    PFO     UFO     SFO     DVFO    Voronezh    Samara
+        
+    g = yearOt
+    m = monthOt
+    d = dayOt
+    
+    
+
+Raschet:
+    
+                        
+    Call Work(g, m, d, DSM, TP, EAS, GrOperCC)
+                                                                                 '     MsgBox g, , "g =                   "
+                                                                                 '   MsgBox m, , "m =                   "
+                                                                                 '   MsgBox d, , "d =                   "
+
+                                                                                  '  MsgBox g, , "after g =                   "
+                                                                                  '  MsgBox m, , "after m =                   "
+                                                                                 '   MsgBox d, , "after d =                   "
+'проверка, что если рассматрена конечная дата, то это последний шаг процесса, - на выход
+                If g - yearDo = 0 And m - monthDo = 0 And d - dayDo = 0 Then
+                                                                                 '   MsgBox yearDo, , "yearDo =                   "
+                                                                                 '   MsgBox monthDo, , "monthDo =                   "
+                                                                                  '  MsgBox dayDo, , "dayDo =                   "
+                                                                                 '  MsgBox g, , "g =                   "
+                                                                                 '   MsgBox m, , "m =                   "
+                                                                                  '  MsgBox d, , "d =                   "
+                                                                                   ' MsgBox yearDo - g, , "yearDo - g =                   "
+                                                                                    'MsgBox monthDo - m, , "monthDo - m =                   "
+                                                                                  '  MsgBox dayDo - d, , "dayDo - d =                   "
+                                                                                  '  MsgBox "This is End!", , "This is End!                           "
+                    GoTo konec
+                                                                                    
+                                                                                    'MsgBox LastStep, , "now LastStep =                           "
+                  End If
+    Call nextData(g, m, d)
+    GoTo Raschet
+    
+'----------------------------------------------------------------------------------------------------------------------------------
+'The End
+'----------------------------------------------------------------------------------------------------------------------------------
+
+konec:
+' MsgBox "TheEnd!!!!!!!!!!!!!!!!!!!!!!", , "TheEnd!!!!!!!!!!!!!!!!!!!!!!                               "
+Workbooks(Filename).Activate
+'Вывод результатов:
+    Cells(6, 5) = GrOperCC
+    Cells(7, 5) = DSM(0)
+    Cells(8, 5) = DSM(1)
+    Cells(9, 5) = DSM(2)
+    Cells(10, 5) = DSM(3)
+    Cells(11, 5) = DSM(4)
+    Cells(12, 5) = DSM(5)
+    Cells(13, 5) = DSM(6)
+    Cells(14, 5) = DSM(7)
+    Cells(15, 5) = TP(0)
+    Cells(16, 5) = TP(1)
+    Cells(17, 5) = TP(2)
+    Cells(18, 5) = TP(3)
+    Cells(19, 5) = TP(4)
+    Cells(20, 5) = TP(5)
+    Cells(21, 5) = TP(6)
+    Cells(22, 5) = TP(7)
+    Cells(23, 5) = TP(8)
+    Cells(24, 5) = TP(9)
+    Cells(25, 5) = EAS(0)
+    Cells(26, 5) = EAS(1)
+    Cells(27, 5) = EAS(2)
+    Cells(28, 5) = EAS(3)
+    Cells(29, 5) = EAS(4)
+    Cells(30, 5) = EAS(5)
+    Cells(31, 5) = EAS(6)
+    Cells(32, 5) = EAS(7)
+    Cells(33, 5) = EAS(8)
+    Cells(34, 5) = EAS(9)
+
+'оформление вида строки
+        Range("F6:F34").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "жирный"
+        .Size = 12
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+
+
+
+' прорисовка границ
+    Range("A6:E34").Select
+    Selection.Borders(xlDiagonalDown).LineStyle = xlNone
+    Selection.Borders(xlDiagonalUp).LineStyle = xlNone
+    With Selection.Borders(xlEdgeLeft)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlEdgeTop)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlEdgeBottom)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlEdgeRight)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlInsideVertical)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlInsideHorizontal)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+
+ 'save file
+    ActiveWorkbook.Save
+
+ 'закрыть начальный файл с макросом "ReportAbout8800xxxxxxxcalls.xlsm"
+
+ Workbooks("ReportAbout8800xxxxxxxcalls.xlsm").Close SaveChanges:=False
+
+
+'============================================================================
+' включение обносления данных на экране и автоматических вычислений.
+'============================================================================
+' включение обносления данных на экране
+Application.ScreenUpdating = True
+' включение автоматических вычислений.
+Application.Calculation = xlCalculationAutomatic
+
+
+End Sub
+
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+
+
+'===================================================================================================================
+'===================================================================================================================
+'определение следующей рассматриваемой даты
+
+Sub nextData(g, m, d)
+    d = d + 1
+
+' високосные дни
+    If d > 28 And m = 2 Then
+        If d = 29 And g / 4 = Fix(g / 4) Then
+        GoTo ednNoEnd
+        
+                End If
+        m = m + 1
+        d = 1
+        GoTo ednNoEnd
+        End If
+            
+ ' последний деь месяца
+    If d = 31 Then
+        If m = 1 Or m = 3 Or m = 5 Or m = 7 Or m = 8 Or m = 10 Or m = 12 Then
+        GoTo ednNoEnd
+                End If
+    End If
+    
+   If d > 30 Then
+        m = m + 1
+        d = 1
+    End If
+    
+    If m = 13 Then
+        g = g + 1
+        m = 1
+    End If
+ednNoEnd:
+End Sub
+
+
+'===================================================================================================================
+'===================================================================================================================
+
+' чтение файлов-репортов, и подсчёт результатов
+
+Sub Work(g, m, d, DSM, TP, EAS, GrOperCC)
+    Dim IPOreportFileName As String
+    Dim zerOm As String
+    Dim LastActiveCellRow, LastActiveCellRow2 As Integer
+
+    Dim FilesPath As String
+    FilesPath = "C:\Logs\IPO for CC COD\"
+'    FilesPath = InputBox(" : ", "папка файлов данных, закончить знаков `\` :", "c:\Logs\IPO for CC COD\")
+
+'----------------------------------------------------------------
+'опраделение имени файле
+
+    Call addZero(m, zeroAnd)
+    zerOm = zeroAnd
+    Call addZero(d, zeroAnd)
+
+
+    
+    IPOreportFileName = g & zerOm & zeroAnd & ".log"
+
+                                                                    'MsgBox IPOreportFileName, , "IPOreportFileName                          "
+                                                
+                                                                    'MsgBox "Work!!!", , " = "
+                                                                    'MsgBox stroka, , "stroka = "
+
+'----------------------------------------------------------------
+' открывает файл "IPOreportFileName с найденным именем: годМесяцЧисло.log"
+
+                                                                    Debug.Print "open " & FilesPath & IPOreportFileName
+    Workbooks.OpenText Filename:=FilesPath & IPOreportFileName, Origin:=866, _
+            StartRow:=1, DataType:=xlDelimited, TextQualifier:=xlDoubleQuote, _
+            ConsecutiveDelimiter:=True, Tab:=False, Semicolon:=False, Comma:=True _
+            , Space:=True, Other:=False, FieldInfo:=Array(Array(1, 2), Array(2, 2), Array _
+            (3, 2), Array(4, 2), Array(5, 2), Array(6, 2), Array(7, 2), Array(8, 2), Array(9, 2), Array( _
+            10, 2), Array(11, 1)), TrailingMinusNumbers:=True
+
+'----------------------------------------------------------------
+'поиск ячейки с текстом "787xxxx", т.е. описание звонк 8(800)xxx-xxxx
+
+Cells(1, 1).Activate        'выбор первой ячейки
+Cells(1, 1).Value = "787xxxx" 'прописываем в первой строке искомое "787xxxx", чтобы если в рассматрирваемом файле нет записи "787xxxx", когда поиск пойдёт на "второй круг", определить, что это и есть уже "второй круг", и пора выходить.
+'________________________________________________________
+            'поиск ячейки со значением с содержанием "787xxxx"
+LastActiveCellRow = 0
+                                                                    'Debug.Print "назначено LastActiveCellRow = 0 = " & LastActiveCellRow
+Do1:
+Cells.Find(What:="787xxxx", After:=ActiveCell, LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=False, SearchFormat:=False).Activate
+                                                                    'Debug.Print "прошёл поиск 787xxxx, в 29й ячейке прописано: " & Mid(Cells(ActiveCell.Row, 29), 4, 9) & " ;  ActiveCell.Row = " & ActiveCell.Row
+    If ActiveCell.Column = 1 And ActiveCell.Row = 1 Then       'если поиск вернулсяна первую ячейку, что говорит о том, что "пошёл второй круг", - закончить
+                                                                    'Debug.Print "искомое значение не в ActiveCell.Column 8 , а в (" & ActiveCell.Row & " , " & ActiveCell.Column & ")"
+            GoTo EndDo1
+        End If
+    If ActiveCell.Column <> 8 Then
+                                                                    'Debug.Print "искомое значение не в ActiveCell.Column 8 , а в (" & ActiveCell.Row & " , " & ActiveCell.Column & ")"
+            GoTo Do1
+        End If
+' проверка, что пошёл "второй круг" рассматриваемого файла. Отключена, т.к. не работает при отсутствии в файле данных "787xxxx"; и заменено на проверку "...If ActiveCell.Column = 1 And ActiveCell.Row = 1 Then..." (пара операций раньше)
+'    If LastActiveCellRow >= ActiveCell.Row Then
+'                                                                   'Debug.Print "сейчас LastActiveCellRow = " & LastActiveCellRow & " >= ActiveCell.Row = " & ActiveCell.Row & " поэтому GoTo EndDo1"
+'            GoTo EndDo1
+'    End If
+    If Mid(Cells(ActiveCell.Row, 29), 4, 9) Like "аз операц" Then
+                                                                    'Debug.Print "в 29й ячейке прописано `аз операц`, сответственно, Cells(" & ActiveCell.Row + 1 & ", 1).Select и GoTo Do1"
+                                                                    'Debug.Print "в 29й ячейке прописано `аз операц`, сответственно, Cells(" & ActiveCell.Row + 1 & ", 1).Select и GoTo Do1"
+                Cells(ActiveCell.Row + 1, 1).Activate
+                GoTo Do1
+            End If
+
+                                                                    'Debug.Print "сейчас LastActiveCellRow = " & LastActiveCellRow & " < ActiveCell.Row = " & ActiveCell.Row & " поэтому теперь LastActiveCellRow = " & ActiveCell.Row
+            LastActiveCellRow = ActiveCell.Row
+                                                                    'Debug.Print "подтверждение  LastActiveCellRow = " & LastActiveCellRow
+    unknown = Cells(ActiveCell.Row, ActiveCell.Column + 2).Value
+                                                                    'Debug.Print "unknown = " & unknown
+    Count = 1
+                                                                    'Debug.Print "begin count = " & Count
+    Cells(ActiveCell.Row, 29) = Count & " раз операция " & unknown
+
+'________________________________________________________
+        'поиск дополнительной информации об этом действии (по номеру действия)
+    Cells(ActiveCell.Row + 1, 1).Activate
+    LastActiveCellRow2 = 0
+                                                                    'Debug.Print "назначено LastActiveCellRow2 = 0 = " & LastActiveCellRow2
+Do2:
+    Cells.Find(What:=unknown, After:=ActiveCell, LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=False, SearchFormat:=False).Activate
+                                                                    'Debug.Print "прошёл поиск unknown = " & unknown & ", в 29й ячейке прописано: " & Mid(Cells(ActiveCell.Row, 29), 4, 9) & " ;  ActiveCell.Row = " & ActiveCell.Row
+    If LastActiveCellRow2 >= ActiveCell.Row Then
+                                                                    'Debug.Print "сейчас LastActiveCellRow2 = " & LastActiveCellRow2 & " >= ActiveCell.Row = " & ActiveCell.Row & " поэтому GoTo EndDo2"
+               GoTo EndDo2
+        End If
+    If LastActiveCellRow = ActiveCell.Row Then
+                                                                    'Debug.Print "такое " & Cells(ActiveCell.Row - 1, 29) & " только одно значение " & " поэтому GoTo EndDo2"
+               GoTo EndDo2
+        End If
+    If Mid(Cells(ActiveCell.Row, 29), 4, 9) Like "аз операц" Then
+                                                                    'Debug.Print "в 29й ячейке прописано `аз операц`, сответственно, Cells(" & ActiveCell.Row + 1 & ", 1).Select и GoTo Do2"
+                Cells(ActiveCell.Row + 1, 1).Activate
+                GoTo Do2
+            End If
+                                                                    'Debug.Print "сейчас LastActiveCellRow2 = " & LastActiveCellRow2 & " < ActiveCell.Row = " & ActiveCell.Row & " поэтому теперь LastActiveCellRow2 = " & ActiveCell.Row
+        LastActiveCellRow2 = ActiveCell.Row
+            
+        
+                                                                    'Debug.Print "подтверждение  LastActiveCellRow2 = " & LastActiveCellRow2
+        Count = Count + 1
+                                                                    'Debug.Print "now count = " & Count
+'-->begin получение результатов
+            'рассматриваем только count 2, т.к. count 1 - это пришёл вызов изВне на VM; count 2 - направился на группу; а остальные count - это перевод на другого оператора группы, или ппереадресация отвеченного, а мы рассматриваем группы, а не конечных пользоватеоей.
+        If Count = 2 Then
+
+        'Звонящий представился клинтом, и вызов направлен на `Группа операторов КЦ` 8(812)493-2317.
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(988124932317#) Or Mid(Cells(ActiveCell.Row, 7).Value, 1, 4) = CStr(4999#) Then
+                GrOperCC = GrOperCC + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(988124932317) = " & CStr(988124932317#)
+                                                                        'Debug.Print ""
+                                                                        End If
+
+        'Вызов попал на оператора ДИСПЕТЧЕРСКОЙ СЛУЖБЫ некоторого МАКРОРЕГИОНА. Определение оператор какой группы.
+                    'Stolitsa номера 040-046
+            If CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) >= 40 And CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) <= 46 Then
+                DSM(0) = DSM(0) + 1
+                                                                        'Debug.Print "CInt(mid(Cells(ActiveCell.Row,12).Value,2)) = " & CInt(mid(Cells(ActiveCell.Row,12).Value,2))
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'SevZapMO номера 066-069
+            If CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) >= 66 And CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) <= 69 Then
+                DSM(1) = DSM(1) + 1
+                                                                        'Debug.Print "CInt(mid(Cells(ActiveCell.Row,12).Value,2)) = " & CInt(mid(Cells(ActiveCell.Row,12).Value,2))
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'UralMO номера 070-074
+            If CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) >= 70 And CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) <= 74 Then
+                DSM(3) = DSM(3) + 1
+                                                                        'Debug.Print "CInt(mid(Cells(ActiveCell.Row,12).Value,2)) = " & CInt(mid(Cells(ActiveCell.Row,12).Value,2))
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'SibirMO номера 080-084
+            If CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) >= 80 And CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) <= 84 Then
+                DSM(4) = DSM(4) + 1
+                                                                        'Debug.Print "CInt(mid(Cells(ActiveCell.Row,12).Value,2)) = " & CInt(mid(Cells(ActiveCell.Row,12).Value,2))
+                                                                        'Debug.Print "" ""
+                                                                        End If
+                    'DalVostMO номера 086-089
+            If CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) >= 86 And CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) <= 89 Then
+                DSM(5) = DSM(5) + 1
+                                                                        'Debug.Print "CInt(mid(Cells(ActiveCell.Row,12).Value,2)) = " & CInt(mid(Cells(ActiveCell.Row,12).Value,2))
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'SevKavkMO номера 090-091
+            If CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) >= 90 And CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) <= 91 Then
+                DSM(6) = DSM(6) + 1
+                                                                        'Debug.Print "CInt(mid(Cells(ActiveCell.Row,12).Value,2)) = " & CInt(mid(Cells(ActiveCell.Row,12).Value,2))
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'YugnMO номера 036-039
+            If CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) >= 36 And CInt(Mid(Cells(ActiveCell.Row, 12).Value, 2)) <= 39 Then
+                DSM(7) = DSM(7) + 1
+                                                                        'Debug.Print "CInt(mid(Cells(ActiveCell.Row,12).Value,2)) = " & CInt(mid(Cells(ActiveCell.Row,12).Value,2))
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'PrivolgMO 8(831)215-1085
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(988312151085#) Then
+                DSM(2) = DSM(2) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(988312151085) = " & CStr(988312151085)
+                                                                        'Debug.Print ""
+                                                                        End If
+
+                'Вызов попал ТЕХНИЧЕСКУЮ ПОДДЕРЖКУ. Определение группы по её номеру.
+                    'KKT номера 0030001, 0030005, 0030006 (в разное время суток)
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030001) = " & CStr(0030001)
+                                                                        'Debug.Print "CStr(0030005) = " & CStr(0030005)
+                                                                        'Debug.Print "CStr(0030005) = " & CStr(0030006)
+                                                                        'Debug.Print ""
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30001) Or Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30005) Or Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30006) Then TP(0) = TP(0) + 1
+                                                                        'Debug.Print "TP(0) = " & TP(0)
+'                                                                       Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+'                                                                       Debug.Print "CStr(0030001) = " & CStr(0030001)
+'                                                                       Debug.Print "CStr(0030005) = " & CStr(0030005)
+'                                                                       Debug.Print "CStr(0030005) = " & CStr(0030006)
+'                                                                       Debug.Print ""
+'                                                                       end If
+                    'Scale-Весы номер 0030002
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30002) Then
+                TP(1) = TP(1) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030002) = " & CStr(0030002)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'MNM номер 0030003
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30003) Then
+                TP(2) = TP(2) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030003) = " & CStr(0030003)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'IT_KMT номер 0030010
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30010) Then
+                TP(3) = TP(3) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030010) = " & CStr(0030010)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'IT_ASO номер 0030011
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30011) Then
+                TP(4) = TP(4) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030011) = " & CStr(0030011)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'IT_Tel номер 0030012
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30012) Then
+                TP(5) = TP(5) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030012) = " & CStr(0030012)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'IT_ARM номер 0030013
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30013) Then
+                TP(6) = TP(6) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030013) = " & CStr(0030013)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'SCCM номер 0030009
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30009) Then
+                TP(7) = TP(7) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030009) = " & CStr(0030009)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'DevSelf_POS номер 501 (напрямую на телефон)
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(501) Then
+                TP(8) = TP(8) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(501) = " & CStr(501)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'DevSelf_Term & SUO номер 77300 (напрямую на телефон)
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(77300) Then
+                TP(9) = TP(9) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(77300) = " & CStr(77300)
+                                                                        'Debug.Print ""
+                                                                        End If
+
+                'Вызов попал РЕГИОНАЛЬНУЮ ПОДДЕРЖКУ ЕАС ОПС по Федеральным округам. Определение группы по её номеру.
+                    'Stolномер 0030004
+            If Mid(Cells(ActiveCell.Row, 7).Value, 3) = CStr(30004) Then
+                EAS(0) = EAS(0) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(0030004) = " & CStr(0030004)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'SZFO номер 989811537951
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989811537951#) Then
+                EAS(1) = EAS(1) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989811537951) = " & CStr(989811537951)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'YuFO номер 989188990114
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989188990114#) Then
+                EAS(2) = EAS(2) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989188990114) = " & CStr(989188990114)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'SCFO номер 989889584018
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989889584018#) Then
+                EAS(3) = EAS(3) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989889584018) = " & CStr(989889584018)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'PFO номер 989101068303
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989101068303#) Then
+                EAS(4) = EAS(4) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989101068303) = " & CStr(989101068303)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'UFO номер 989126768727
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989126768727#) Then
+                EAS(5) = EAS(5) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989126768727) = " & CStr(989126768727)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'SFO номер 989130089864
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989130089864#) Then
+                EAS(6) = EAS(6) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989130089864) = " & CStr(989130089864)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'DVFO номер 989089726410
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989089726410#) Then
+                EAS(7) = EAS(7) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989089726410) = " & CStr(989089726410)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'Voronezh номер 989102412017
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989102412017#) Then
+                EAS(8) = EAS(8) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989102412017) = " & CStr(989102412017)
+                                                                        'Debug.Print ""
+                                                                        End If
+                    'Samara номер 989879535960
+            If Mid(Cells(ActiveCell.Row, 7).Value, 1) = CStr(989879535960#) Then
+                EAS(9) = EAS(9) + 1
+                                                                        'Debug.Print "Mid(Cells(ActiveCell.Row, 7).Value, 1) = " & Mid(Cells(ActiveCell.Row, 7).Value, 1)
+                                                                        'Debug.Print "CStr(989879535960) = " & CStr(989879535960)
+                                                                        'Debug.Print ""
+                                                                        End If
+            End If
+'-->end получение результатов
+                                                                    If Count > 2 Then Debug.Print "now count = " & Count & "   Active.Cells = (" & ActiveCell.Row & "," & ActiveCell.Column & ")"
+        Cells(ActiveCell.Row, 29) = Count & " раз операция " & unknown
+        Cells(ActiveCell.Row + 1, 1).Activate
+                                                                    'Debug.Print "for loop 2 LastActiveCellRow2 = " & LastActiveCellRow2    & " ActiveCell( " & ActiveCell.Row & " , " & ActiveCell.Column & " )"
+        GoTo Do2
+EndDo2:
+    Cells(LastActiveCellRow + 1, 1).Activate
+                                                                    'Debug.Print "nextStep - опять ищем 787xxxx с ячейки " & LastActiveCellRow+1 & ",1"
+                                                                    'Debug.Print "for loop LastActiveCellRow = " & LastActiveCellRow
+    GoTo Do1
+EndDo1:
+                                                                    
+                                                                    
+
+
+' зарывает рассмотренный файл "IPOreportFileName"
+                                                                     'MsgBox "close " & FilesPath & "IPOreportFileName" & m & "-" & d & "-" & g & ".txt"
+Workbooks(IPOreportFileName).Close SaveChanges:=False
+
+End Sub
+
+'----------------------------------------------------------------------------------------------------------------------------------
+'добавление нуля часть имени файла, при необходимости
+
+Sub addZero(dig, zeroAnd)
+If dig < 10 Then
+zeroAnd = "0"
+Else:
+zeroAnd = ""
+                                                                     'MsgBox S
+End If
+zeroAnd = zeroAnd + Trim(Str(dig))
+End Sub
+
+'----------------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------------
+'----------------------------------------------------------------------------------------------------------------------------------
+
+
