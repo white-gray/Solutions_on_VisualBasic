@@ -1,0 +1,927 @@
+﻿'файлы с результатами сбора данных list measurements (взятые с АТС Avaya CM) помещаются в папку
+'файл Отчёт по звонкам.xlsm помещается в корень папки с данными list measurements 
+'
+'При запуске Отчёт по звонкам.xlsm, запрашиваются год, месяц, число начала и конца рассматриваемого периода
+'
+'Далее макрос-программа создаёт файл Отчёт за xx.xx.xxxx – xx.xx.xxxx.xlsx с таблицей, куда будут помещены результаты 
+'
+'Потом рассматриваются отчёты AvayReport - по-одному читает файлы  list measurements по датам указанного периода (дата указана в названии файла), - берёт из них нужные данные (по входящим звонкам с транка Е1 на определённый номер и в определённое время), и вносит их в требуемые места создаваемой таблицы,
+'
+'закрывает каждый файл после сбора данных с него
+'
+'в конце работы закрывает Отчёт по звонкам.xlsm, и оставляет файл Отчёт за xx.xx.xxxx – xx.xx.xxxx.xlsx с готовой таблицей
+'
+'
+'
+'При рассмотре даты в указанном периоде, учитывается номер месяца (кол-во дней), високочный год.
+'
+'Также прописано, что если количество входящих звонков из AnnPeak значительно (на 30) меньше, чем из Tru (бывает, в AnnPeak не попадает день-два), то в отчёте использовать значение из Tru - так решил при проверке
+'
+'------------------------------------------------------------------------------------------------------------------
+
+
+
+
+Attribute VB_Name = "Module1"
+Sub CallsCount()
+'
+' CallsCount
+'
+
+
+'переменные
+Dim dayOt, monthOt As Byte
+Dim defMon, defDay As Byte
+Dim dayDo, monthDo As Byte
+Dim defYear, yearOt, yearDo As Integer
+Dim MyDate, Temp As Integer
+Dim LastStep As Byte
+LastStep = 0
+
+MyDate = Format(Now, "dd.mm.yyyy")
+
+
+
+'------------------------------------------------------------------------------------------------------------------
+'  ввод даты "ОТ"
+    defYear = 16
+    defMon = 3
+    defDay = 11
+yearOt:
+    yearOt = InputBox("год (начиная с 2016; две цифры 20хх):", "Рассматриваем c ", defYear)
+    If yearOt < 16 Or yearOt > 99 Then GoTo yearOt
+                                                                            'MsgBox yearOt, , "yearOt = "
+monthOt:
+    monthOt = InputBox("номер месяца: ", "Рассматриваем c ", defMon)
+    If monthOt < 1 Or monthOt > 12 Then GoTo monthOt
+                                                                            'MsgBox monthOt, , "monthOt = "
+dayOt:
+    dayOt = InputBox("день месяца: ", "Рассматриваем c ", defDay)
+    If dayOt < 1 Or dayOt > 31 Then GoTo dayOt
+                                                                            'MsgBox dayOt, , "dayOt = "
+
+'  ввод даты "ДО"
+                                                                            'MsgBox MyDate, , "MyDate = "
+                                                                            'MsgBox Year(MyDate), , "Year(MyDate) = "
+                                                                            'MsgBox Month(MyDate), , "Month(MyDate) = "
+                                                                            'MsgBox Day(MyDate), , "Day(MyDate) = "
+    defYear = Year(MyDate) - 2000
+    defMon = Month(MyDate)
+                                                                            'MsgBox defMon, , "defMon = "
+    defDay = Day(MyDate) - 1
+                                                                            'MsgBox defDay, , "defDay = "
+yearDo:
+    yearDo = InputBox("год (начиная с 2016; две цифры 20хх): ", "Рассматриваем по ", defYear)
+    If yearDo < 16 Or yearDo > 99 Or yearDo < yearOt Then GoTo yearDo
+                                                                            'MsgBox yearDo, , "yearDo = "
+    yearDo = 2000 + yearDo
+                                                                            'MsgBox yearDo, , "now (+2000) yearDo = "
+    yearOt = 2000 + yearOt
+                                                                            'MsgBox yearOt, , "now (+2000) yearOt = "
+monthDo:
+    monthDo = InputBox("номер месяца: ", "Рассматриваем по ", defMon)
+    If monthDo < 1 Or monthDo > 12 Then GoTo monthDo
+    If yearDo = yearOt And monthDo < monthOt Then GoTo monthDo
+dayDo:
+    dayDo = InputBox("день месяца: ", "Рассматриваем по ", defDay)
+    If dayDo < 1 Or dayDo > 31 Then GoTo dayDo
+    If yearDo = yearOt And monthDo = monthOt And dayDo < dayOt Then GoTo dayDo
+'-------------------------------------------------------------------------------------------------------------------
+'отключаем видимость работы
+
+' собщение "Playse wait!"
+
+Range("G11").Font.Size = 63
+Range("G11").Font.Bold = True
+Range("G11").Font.Underline = xlUnderlineStyleSingle
+Range("G11").Font.Italic = True
+
+Range("G11") = "Please wait! "
+' отключение обновления данных на экране, в момент выполнения макроса.Это позволит Excel сохранить вычислительные мощности компьютера
+Application.ScreenUpdating = False
+' отключение автоматических вычислений для увеличения скоростипроцесса
+Application.Calculation = xlCalculationManual
+
+'-------------------------------------------------------------------------------------------------------------------
+'Создаём и созраняем новый документ
+    
+    Workbooks.Add (xlWBATWorksheet)
+    
+    Columns("A:A").ColumnWidth = 9
+    Columns("B:B").ColumnWidth = 0.5
+    Columns("C:M").ColumnWidth = 20
+    Rows("9:9").RowHeight = 5
+    Cells.Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "обычный"
+        .Size = 10
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+    
+' строка "Отчет по результатам работы Reception"
+    Range("A1").Select
+    ActiveCell.FormulaR1C1 = "Отчет по результатам работы Reception"
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный"
+        .Size = 17
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .Color = -11489280
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+    With Selection
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+
+
+' строки "Статистика по количеству звонков" и даты начала - конца рассматриваемого периода
+    Range("B2:C4").Select
+    With Selection
+        .HorizontalAlignment = xlLeft
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный"
+        .Size = 10
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+    Range("C2").Select
+    ActiveCell.FormulaR1C1 = "Статистика по количеству звонков"
+    Range("C3").Select
+    ActiveCell.FormulaR1C1 = "   Начало периода"
+    Range("D3").Select
+    ActiveCell.FormulaR1C1 = dayOt & "." & monthOt & "." & yearOt
+    Range("C4").Select
+    ActiveCell.FormulaR1C1 = "   Конец периода"
+    Range("D4").Select
+    ActiveCell.FormulaR1C1 = dayDo & "." & monthDo & "." & yearDo
+    
+
+
+' строка "Звонки (495) xxx-xxxx"
+    Range("C6:M6").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "обычный"
+        .Size = 12
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleSingle
+        .ThemeColor = xlThemeColorAccent5
+        .Color = -16777024
+        .TintAndShade = -0.249977111117893
+        .ThemeFont = xlThemeFontNone
+    End With
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "Звонки (495) 787-4500"
+    
+    
+' строка "в рабочее время"
+    Range("C7:K7").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный"
+        .Size = 9
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleSingle
+        .ThemeColor = xlThemeColorAccent5
+        .Color = -16777024
+        .TintAndShade = -0.249977111117893
+        .ThemeFont = xlThemeFontNone
+        .Italic = True
+        .Bold = True
+    End With
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "в рабочее время с 9:00 до 20:00, будние дни"
+    
+     
+' строка "в сутки"
+    Range("L7:M7").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный"
+        .Size = 9
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleSingle
+        .ThemeColor = xlThemeColorAccent5
+        .TintAndShade = -0.249977111117893
+        .Color = -16777024
+        .ThemeFont = xlThemeFontNone
+        .Italic = True
+        .Bold = True
+    End With
+    Selection.Merge
+    ActiveCell.FormulaR1C1 = "в сутки"
+    
+     
+' ячейки оглавлений столбцов таблицы
+    Range("A8:M8").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Font
+        .Name = "Arial"
+        .FontStyle = "полужирный курсив"
+        .Size = 10
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+    Range("A8").Select
+    ActiveCell.FormulaR1C1 = "Дата"
+    Range("C8").Select
+    ActiveCell.FormulaR1C1 = "общее количество звонков"
+    Range("D8").Select
+    ActiveCell.FormulaR1C1 = "пиковый час"
+    Range("E8").Select
+    ActiveCell.FormulaR1C1 = "количество звонков в пиковый час"
+    Range("F8").Select
+    ActiveCell.FormulaR1C1 = "количество звонков, пришедших на Reception (суммарно)"
+    Range("G8").Select
+    ActiveCell.FormulaR1C1 = "максимальное количество звонков в час, пришедших на Reception"
+    Range("H8").Select
+    ActiveCell.FormulaR1C1 = "час максимального количества звонков, пришедших на Reception"
+    Range("I8").Select
+    ActiveCell.FormulaR1C1 = _
+        "количество звонков, не принятых на Reception изначально, и вставших в очередь (суммарно)"
+    Range("J8").Select
+    ActiveCell.FormulaR1C1 = _
+        "максимальное количество звонков в час, не принятых на Reception изначально, и вставших в очередь"
+    Range("K8").Select
+    ActiveCell.FormulaR1C1 = "пиковый час очереди"
+    Range("L8").Select
+    ActiveCell.FormulaR1C1 = "количество звонков, поступивших на xxx-xxxx в нерабочее время"
+    Range("M8").Select
+    ActiveCell.FormulaR1C1 = "Количество звонков переадресованных на 8(800)xxx-xxxx нажатием '1' (суммарно)"
+    
+' справочное - начало
+    Range("O8:T8").Select
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+    End With
+    Range("O8").Select
+    ActiveCell.FormulaR1C1 = "общее количество звонков в рабочее время из Trunk"
+    Range("P8").Select
+    ActiveCell.FormulaR1C1 = "пиковый час из Trunk"
+    Range("Q8").Select
+    ActiveCell.FormulaR1C1 = "количество звонков в пиковый час из Trunk"
+    Range("R8").Select
+    ActiveCell.FormulaR1C1 = "пиковый час из AnnLastHour"
+    Range("S8").Select
+    ActiveCell.FormulaR1C1 = "количество звонков в пиковый час из AnnLastHour"
+    Range("T8").Select
+    ActiveCell.FormulaR1C1 = "количество звонков в нерабочее время за сутки из Trunk"
+    
+    
+' справочное - конец
+     
+                                                                         'MsgBox "Stop!!", , "Stop!!"
+
+    
+' имя файла и его сохранение
+    Dim Filename As String
+    Filename = "Отчёт за " & dayOt & "." & monthOt & "." & yearOt & " - " & dayDo & "." & monthDo & "." & yearDo & ".xlsx"
+    ActiveWorkbook.SaveAs Filename:=ThisWorkbook.Path & "\" & Filename, FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+                                                                         'MsgBox Filename, , "Filename = "
+                                                                         'MsgBox ThisWorkbook.Path, , "ThisWorkbook.Path = "
+                                                                         
+                                                                         
+                                                                         
+'----------------------------------------------------------------------------------------------------------------------------
+
+'   Расчёты
+    Dim g, m, d, stroka As Integer
+    g = yearOt
+    m = monthOt
+    d = dayOt
+    stroka = 9
+    
+    Dim FilesPath As String
+    FilesPath = "C:\Logs\AuraS8300\Reports\"
+'    FilesPath = InputBox(" : ", "папка файлов данных, закончить знаков `\` :", "C:\Logs\AuraS8300\Reports\")
+    
+
+Raschet:
+    
+                        
+    Call Work(g, m, d, FilesPath, Filename, stroka)
+                                                                                 '     MsgBox g, , "g =                   "
+                                                                                 '   MsgBox m, , "m =                   "
+                                                                                 '   MsgBox d, , "d =                   "
+
+                                                                                  '  MsgBox g, , "after g =                   "
+                                                                                  '  MsgBox m, , "after m =                   "
+                                                                                 '   MsgBox d, , "after d =                   "
+'проверка, что если рассматрена конечна дата, то это последний шаг процесса, - то на выход
+                If g - yearDo = 0 And m - monthDo = 0 And d - dayDo = 0 Then
+                                                                                 '   MsgBox yearDo, , "yearDo =                   "
+                                                                                 '   MsgBox monthDo, , "monthDo =                   "
+                                                                                  '  MsgBox dayDo, , "dayDo =                   "
+                                                                                 '  MsgBox g, , "g =                   "
+                                                                                 '   MsgBox m, , "m =                   "
+                                                                                  '  MsgBox d, , "d =                   "
+                                                                                   ' MsgBox yearDo - g, , "yearDo - g =                   "
+                                                                                    'MsgBox monthDo - m, , "monthDo - m =                   "
+                                                                                  '  MsgBox dayDo - d, , "dayDo - d =                   "
+                                                                                  '  MsgBox "This is End!", , "This is End!                           "
+                    GoTo konec
+                                                                                    
+                                                                                    'MsgBox LastStep, , "now LastStep =                           "
+                  End If
+    Call nextData(g, m, d)
+    GoTo Raschet
+    
+'----------------------------------------------------------------------------------------------------------------------------------
+
+konec:
+' MsgBox "TheEnd!!!!!!!!!!!!!!!!!!!!!!", , "TheEnd!!!!!!!!!!!!!!!!!!!!!!                               "
+
+' прорисовка границ
+    Range(Cells(1, 1), Cells(ActiveCell.Row, 13)).Select
+    Selection.Borders(xlDiagonalDown).LineStyle = xlNone
+    Selection.Borders(xlDiagonalUp).LineStyle = xlNone
+    With Selection.Borders(xlEdgeLeft)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlEdgeTop)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlEdgeBottom)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlEdgeRight)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlInsideVertical)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+    With Selection.Borders(xlInsideHorizontal)
+        .LineStyle = xlContinuous
+        .ColorIndex = 0
+        .TintAndShade = 0
+        .Weight = xlThin
+    End With
+
+' закрепляем заголовок
+    Workbooks(Filename).Activate
+    Range("C9").Select
+    ActiveWindow.FreezePanes = True
+
+' save file
+    ActiveWorkbook.Save
+
+' закрыть начальный файл с макросом "Отчёт по звонкам 7874500.xlsm"
+
+Workbooks("Отчёт по звонкам.xlsm").Close SaveChanges:=False
+
+' включение обносления данных на экране
+Application.ScreenUpdating = True
+' включение автоматических вычислений.
+Application.Calculation = xlCalculationAutomatic
+
+
+
+End Sub
+
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+'===================================================================================================================
+
+Sub nextData(g, m, d)
+    d = d + 1
+
+' високосные дни
+    If d > 28 And m = 2 Then
+        If d = 29 And g / 4 = Fix(g / 4) Then
+        GoTo dne
+        
+                End If
+        m = m + 1
+        d = 1
+        GoTo dne
+        End If
+            
+ ' последний деь месяца
+    If d = 31 Then
+        If m = 1 Or m = 3 Or m = 5 Or m = 7 Or m = 8 Or m = 10 Or m = 12 Then
+        GoTo dne
+                End If
+    End If
+    
+   If d > 30 Then
+        m = m + 1
+        d = 1
+    End If
+    
+    If m = 13 Then
+        g = g + 1
+        m = 1
+    End If
+dne:
+End Sub
+
+'===================================================================================================================
+
+' чтение файлов-репортов, и внесение инфы из них в нащ файл
+Sub Work(g, m, d, FilesPath, Filename, stroka)
+    Dim AnnPeakName, AnnHoursName, trunksHoursName, TextValue As String
+    Dim gForTrunk, mForTrunk, dForTrunk, Temp As Integer
+    
+    AnnPeakName = "announcementsPeak_" & m & "-" & d & "-" & g & ".txt"
+    AnnHoursName = "announcementsLastHour_" & m & "-" & d & "-" & g & ".txt"
+
+' проверка даты для расчёта данных из файла trunk_дата.txt
+    gForTrunk = g
+    mForTrunk = m
+    dForTrunk = d + 1
+    If m = 2 And d = 29 And g / 4 = Fix(g / 4) Then
+            mForTrunk = m + 1
+            dForTrunk = 1
+    End If
+    
+    If m = 2 And d = 28 And g / 4 <> Fix(g / 4) Then
+            mForTrunk = m + 1
+            dForTrunk = 1
+    End If
+    
+    If d = 31 Then
+                                                                            'MsgBox d, , "d = 31 !!!                          "
+        If m = 1 Or m = 3 Or m = 5 Or m = 7 Or m = 8 Or m = 10 Or m = 12 Then
+                                                                            'MsgBox d, , "go mForTrunk = m + 1 and  dForTrunk = 1 !!!                          "
+            mForTrunk = m + 1
+            dForTrunk = 1
+        End If
+                                                                            'MsgBox dForTrunk, , "end d = 31 !!!                          "
+    End If
+    
+    If d = 30 Then
+                                                                            'MsgBox d, , "d = 30 !!!                          "
+        If m = 4 Or m = 6 Or m = 9 Or m = 11 Then
+                                                                            'MsgBox d, , "go mForTrunk = m + 1 and  dForTrunk = 1 !!!                          "
+            mForTrunk = m + 1
+            dForTrunk = 1
+        End If
+                                                                            'MsgBox dForTrunk, , "end d = 30 !!!                          "
+    End If
+    
+    If m = 12 And d = 31 Then
+            gForTrunk = g + 1
+            mForTrunk = 1
+            dForTrunk = 1
+    End If
+                                                                            'MsgBox gForTrunk, , "gForTrunk                          "
+                                                                            'MsgBox mForTrunk, , "mForTrunk                          "
+                                                                            'MsgBox dForTrunk, , "dForTrunk                          "
+    
+    trunksHoursName = "trunks_" & mForTrunk & "-" & dForTrunk & "-" & gForTrunk & ".txt"
+                                                
+                                                                    'MsgBox "Work!!!", , " = "
+    stroka = stroka + 1                ' рассматриваемая строка в конечном файле
+                                                                    'MsgBox stroka, , "stroka = "
+' прописывает дату рассматриваемого дня
+    Workbooks(Filename).Activate
+                                                                    'MsgBox Filename, , "Filename = "
+    Worksheets(1).Cells(stroka, 1).Select
+    Selection.FormulaR1C1 = d & "." & m & "." & g
+
+'----------------------------------------------------------------------------------------------------------------------------------
+
+' открывает файл "announcementsPeak_дата"
+                                                                    'MsgBox "open " & FilesPath & "AnnPeakName" & m & "-" & d & "-" & g & ".txt"
+    Workbooks.OpenText Filename:=FilesPath & AnnPeakName, Origin:=866, _
+            StartRow:=1, DataType:=xlDelimited, TextQualifier:=xlDoubleQuote, _
+            ConsecutiveDelimiter:=True, Tab:=False, Semicolon:=False, Comma:=False _
+            , Space:=True, Other:=False, FieldInfo:=Array(Array(1, 2), Array(2, 2), Array _
+            (3, 2), Array(4, 2), Array(5, 2), Array(6, 2), Array(7, 2), Array(8, 2), Array(9, 2), Array( _
+            10, 2), Array(11, 1)), TrailingMinusNumbers:=True
+    
+  ' пиковый час и Количество звонков в пиковый час
+    Workbooks(AnnPeakName).Activate
+    Range("C56").Select
+    Temp = ActiveCell.Value / 100
+    TextValue = Temp & ":00 - " & Temp + 1 & ":00"
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 4).Select
+    ActiveCell.Value = TextValue
+    
+    Workbooks(AnnPeakName).Activate
+    Range("D56").Select
+    Selection.Copy
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 5).Select
+    Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks:=False, Transpose:=False
+
+  ' количество звонков пришедших на Reception и Время максимального количества звонков
+    Workbooks(AnnPeakName).Activate
+    Range("D84").Select
+    Selection.Copy
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 7).Select
+    Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks:=False, Transpose:=False
+    
+    Workbooks(AnnPeakName).Activate
+    Range("C84").Select
+    Temp = ActiveCell.Value / 100
+    TextValue = Temp & ":00 - " & Temp + 1 & ":00"
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 8).Select
+    ActiveCell.Value = TextValue
+  
+  ' количество звонков, не принятых на Reception изначально, и вставших в очередь и Пиковый час очереди
+    Workbooks(AnnPeakName).Activate
+    Range("D85").Select
+    Selection.Copy
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 10).Select
+    Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks:=False, Transpose:=False
+    
+    Workbooks(AnnPeakName).Activate
+    Range("C85").Select
+    Temp = ActiveCell.Value / 100
+    TextValue = Temp & ":00 - " & Temp + 1 & ":00"
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 11).Select
+    ActiveCell.Value = TextValue
+
+
+
+' зарывает файл "announcementsPeak_дата"
+                                                                     'MsgBox "close " & FilesPath & "AnnPeakName" & m & "-" & d & "-" & g & ".txt"
+Workbooks(AnnPeakName).Close
+
+'----------------------------------------------------------------------------------------------------------------------------------
+
+' открывает файл "announcementsLastHour_дата"
+                                                                    'MsgBox "open " & FilesPath & "announcementsLastHour_дата" & m & "-" & d & "-" & g & ".txt"
+    Dim CallsNotWorkTime, TotalCallsDay, TotalSilence, TotalSilence2, TotalSilence3, CallsDayMax, timeCallsDayMax As Integer
+    Workbooks.OpenText Filename:=FilesPath & AnnHoursName, Origin:=866, _
+            StartRow:=1, DataType:=xlDelimited, TextQualifier:=xlDoubleQuote, _
+            ConsecutiveDelimiter:=True, Tab:=False, Semicolon:=False, Comma:=False _
+            , Space:=True, Other:=False, FieldInfo:=Array(Array(1, 2), Array(2, 2), Array _
+            (3, 2), Array(4, 2), Array(5, 2), Array(6, 2), Array(7, 2), Array(8, 2), Array(9, 2), Array( _
+            10, 2), Array(11, 1)), TrailingMinusNumbers:=True
+    
+  ' поисл ячейки  со значением "Hello"
+    Range("A1").Select
+    Cells.Find(What:="Hello", After:=ActiveCell, LookIn:=xlFormulas, LookAt _
+        :=xlPart, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:= _
+        False, SearchFormat:=False).Activate
+                                                                    'MsgBox ActiveCell.row, , "ActiveCell.row after Find           "
+                                                                    'MsgBox ActiveCell.Column, , "ActiveCell.Column after Find         "
+                                                                    'MsgBox "ActiveCell.after Find         ", , "ActiveCell.after Find         "
+        Cells(ActiveCell.Row, ActiveCell.Column + 2).Select
+                                                                    'MsgBox ActiveCell.row, , "ActiveCell.row            "
+                                                                    'MsgBox ActiveCell.Column, , "ActiveCell.Column          "
+                                                                    'MsgBox ActiveCell.Value, , "Znachenie(FindedRow, FindedColumn + 2)            "
+
+                                                                    
+        Temp = Cells(ActiveCell.Row, ActiveCell.Column - 1).Value
+        timeCallsDayMax = Temp
+        TotalCallsDay = ActiveCell.Value
+        CallsDayMax = ActiveCell.Value
+                                                                    'MsgBox timeCallsDayMax, , "timeCallsDayMax   begin         "
+                                                                    'MsgBox TotalCallsDay, , "TotalCallsDay   begin            "
+                                                                    'MsgBox CallsDayMax, , "CallsDayMax   begin            "
+                                                                     
+        Temp = Cells(ActiveCell.Row + 24, ActiveCell.Column).Value
+                                                                    'MsgBox Temp, , "for CallsNotWorkTime   begin           "
+        CallsNotWorkTime = Temp
+
+
+        Temp = Cells(ActiveCell.Row + 28, ActiveCell.Column).Value
+                                                                    'MsgBox Temp, , "for TotalSilence first           "
+        TotalSilence = Temp
+
+
+        Temp = Cells(ActiveCell.Row + 29, ActiveCell.Column).Value
+                                                                    'MsgBox Temp, , "for TotalSilence2 first           "
+        TotalSilence2 = Temp
+        
+        
+        Temp = Cells(ActiveCell.Row + 30, ActiveCell.Column).Value
+                                                                    'MsgBox Temp, , "for TotalSilence3 first           "
+        TotalSilence3 = Temp
+'
+
+HelloFind:
+        Cells.FindNext(After:=ActiveCell).Activate
+                                                                    'MsgBox Cells(ActiveCell.row, ActiveCell.Column).Value, , "Znachnie after Find now       "
+        If Cells(ActiveCell.Row, ActiveCell.Column).Value <> "Hello" Then GoTo HelloFind
+                                                                    'MsgBox ActiveCell.row, , "ActiveCell.row            "
+        If ActiveCell.Row < 21 Then GoTo theEndHello
+        Cells(ActiveCell.Row, ActiveCell.Column + 2).Select
+                                                                    'MsgBox Cells(ActiveCell.row, ActiveCell.Column + 2), , "Hello            "
+                                                                    'MsgBox ActiveCell.Value, , "Ccell(FindedRow, FindedColumn + 2)            "
+        Temp = ActiveCell.Value
+        If CallsDayMax < Temp Then
+                    CallsDayMax = Temp
+                    timeCallsDayMax = Cells(ActiveCell.Row, ActiveCell.Column - 1).Value
+                                                                    'MsgBox ActiveCell.row, , "ActiveCell.row            "
+                                                                    'MsgBox ActiveCell.Column, , "ActiveCell.Column          "
+                                                                    'MsgBox CallsDayMax, , "CallsDayMax now =          "
+                                                                    'MsgBox timeCallsDayMax, , "timeCallsDayMax =          "
+                                                                    
+            End If
+                                                                    'MsgBox CallsDayMax, , "CallsDayMax            "
+        TotalCallsDay = TotalCallsDay + Temp
+        
+        
+        Temp = Cells(ActiveCell.Row + 24, ActiveCell.Column).Value
+        CallsNotWorkTime = CallsNotWorkTime + Temp
+                                                                    'MsgBox CallsNotWorkTime, , "CallsNotWorkTime now           "
+        
+        Temp = Cells(ActiveCell.Row + 28, ActiveCell.Column).Value
+        TotalSilence = TotalSilence + Temp
+                                                                    'MsgBox TotalSilence, , "TotalSilence now           "
+        
+        Temp = Cells(ActiveCell.Row + 29, ActiveCell.Column).Value
+        TotalSilence2 = TotalSilence2 + Temp
+                                                                    'MsgBox TotalSilence2, , "TotalSilence2 now           "
+                                                                    
+        Temp = Cells(ActiveCell.Row + 30, ActiveCell.Column).Value
+        TotalSilence3 = TotalSilence3 + Temp
+                                                                    'MsgBox TotalSilence3, , "TotalSilence3 now           "
+                                                                    
+                                                                    'MsgBox TotalCallsDay, , "TotalCallsDay now            "
+        GoTo HelloFind
+theEndHello:
+
+
+' прописка даных в файле
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 3).Select
+    ActiveCell.FormulaR1C1 = TotalCallsDay
+                                                                    'MsgBox TotalCallsDay, , "TotalCallsDay now            "
+    Worksheets(1).Cells(stroka, 6).Select
+    ActiveCell.FormulaR1C1 = TotalSilence
+                                                                    'MsgBox TotalSilence, , "TotalSilence now            "
+    Worksheets(1).Cells(stroka, 9).Select
+    ActiveCell.FormulaR1C1 = TotalSilence2
+                                                                    'MsgBox TotalSilence2, , "TotalSilence2 now            "
+    Worksheets(1).Cells(stroka, 13).Select
+    ActiveCell.FormulaR1C1 = TotalSilence3
+                                                                    'MsgBox TotalSilence3, , "TotalSilence3 now            "
+    Worksheets(1).Cells(stroka, 12).Select
+    ActiveCell.FormulaR1C1 = CallsNotWorkTime
+                                                                    'MsgBox CallsNotWorkTime, , "CallsNotWorkTime now            "
+                                                                    
+                                                                    
+                                                                    
+                                                                    
+' справочное - начало
+    Worksheets(1).Cells(stroka, 18).Select
+    ActiveCell.FormulaR1C1 = timeCallsDayMax
+                                                                    'MsgBox timeCallsDayMax, , "timeCallsDayMax now            "
+    Worksheets(1).Cells(stroka, 19).Select
+    ActiveCell.FormulaR1C1 = CallsDayMax
+                                                                    'MsgBox CallsDayMax, , "CallsDayMax now            "
+' справочное - конец
+
+
+' зарывает файл "announcementsLastHour_дата"
+                                                                    'MsgBox "close " & FilesPath & "announcementsLastHour_дата" & m & "-" & d & "-" & g & ".txt"
+
+Workbooks(AnnHoursName).Close
+
+
+
+'----------------------------------------------------------------------------------------------------------------------------------
+
+' открывает файл "trunks_дата"
+                                                                    'MsgBox "open " & FilesPath & "trunks" & m & "-" & d & "-" & g & ".txt"
+
+    Workbooks.OpenText Filename:=FilesPath & trunksHoursName, Origin:=866, _
+            StartRow:=1, DataType:=xlDelimited, TextQualifier:=xlDoubleQuote, _
+            ConsecutiveDelimiter:=True, Tab:=False, Semicolon:=False, Comma:=False _
+            , Space:=True, Other:=False, FieldInfo:=Array(Array(1, 2), Array(2, 2), Array _
+            (3, 2), Array(4, 2), Array(5, 2), Array(6, 2), Array(7, 2), Array(8, 2), Array(9, 2), Array( _
+            10, 2), Array(11, 1)), TrailingMinusNumbers:=True
+    Range("F8").Select
+  ' первые значения по звонкам
+        timeCallsDayMax = Cells(ActiveCell.Row, ActiveCell.Column - 4).Value
+        TotalCallsDay = 0
+        CallsDayMax = 0
+        CallsNotWorkTime = ActiveCell.Value
+                                                                    'MsgBox timeCallsDayMax, , "timeCallsDayMax first            "
+                                                                    'MsgBox CallsDayMax, , "CallsDayMax first            "
+                                                                    'MsgBox TotalCallsDay, , "TotalCallsDay first            "
+                                                                    'MsgBox CallsNotWorkTime, , "CallsNotWorkTime first            "
+
+
+CallsCount:
+        Temp = ActiveCell.Row + 1
+                                                                    'MsgBox Temp, , "ActiveCell.row            "
+        If Temp = 20 Then Temp = 30
+        If Temp = 42 Then GoTo theEndTrunk
+                                                                    'MsgBox Temp, , "to see ActiveCell.row  now =          "
+        Cells(Temp, ActiveCell.Column).Select
+        
+
+                                                                    'MsgBox CallsDayMax, , "and CallsDayMax  =          "
+        Temp = Cells(ActiveCell.Row, ActiveCell.Column - 4).Value / 100
+                                                                    'MsgBox Temp, , "looking time          "
+        If Temp >= 9 And Temp <= 19 Then
+                                                                    'MsgBox "It's Work Time!!!", , "It's Work Time!!!           "
+                Temp = ActiveCell.Value
+                    If CallsDayMax < Temp Then
+                        CallsDayMax = Temp
+                        timeCallsDayMax = Cells(ActiveCell.Row, ActiveCell.Column - 4).Value
+                                                                    'MsgBox CallsDayMax, , "CallsDayMax now =          "
+                                                                    'MsgBox timeCallsDayMax, , "timeCallsDayMax now =          "
+                    End If
+                Temp = Cells(ActiveCell.Row, ActiveCell.Column).Value
+                TotalCallsDay = TotalCallsDay + Temp
+                                                                    'MsgBox Temp, , "add to TotalCallsDay now            "
+        Else
+                                                                    'MsgBox "It's not Work Time!!!", , "It's not Work Time!!!           "
+                Temp = Cells(ActiveCell.Row, ActiveCell.Column).Value
+                CallsNotWorkTime = CallsNotWorkTime + Temp
+                                                                    'MsgBox Temp, , "add to CallsNotWorkTime now            "
+        End If
+                                                                    'MsgBox TotalCallsDay, , "TotalCallsDay now            "
+                                                                    'MsgBox CallsNotWorkTime, , "CallsNotWorkTime            "
+        
+        
+        
+        
+        GoTo CallsCount
+        
+
+theEndTrunk:
+
+' прописка даных в файле
+' справочное - начало
+
+    Workbooks(Filename).Activate
+    Worksheets(1).Cells(stroka, 15).Select
+    ActiveCell.FormulaR1C1 = TotalCallsDay
+
+
+    Worksheets(1).Cells(stroka, 16).Select
+    ActiveCell.FormulaR1C1 = timeCallsDayMax
+    
+    Worksheets(1).Cells(stroka, 17).Select
+    ActiveCell.FormulaR1C1 = CallsDayMax
+    
+    Worksheets(1).Cells(stroka, 20).Select
+    ActiveCell.FormulaR1C1 = CallsNotWorkTime
+     
+' справочное - конец
+
+
+' зарывает файл "trunks_дата"
+                                                                    'MsgBox "close " & FilesPath & "trunks" & m & "-" & d & "-" & g & ".txt"
+Workbooks(trunksHoursName).Close
+
+' если количество входящих звонков из AnnPeak значительно меньше, чем из Tru (бывает, в AnnPeak не попадает день-два), то в использовать значение из Tru
+ Workbooks(Filename).Activate
+ If Cells(stroka, 3).Value < (Cells(stroka, 15).Value - 30) Then
+                                                                    MsgBox stroka, , "Hop!!!   Cells(stroka, 3).Value = Cells(stroka, 15)            "
+                                                                    MsgBox stroka, , "stroka =           "
+                                                                    MsgBox Cells(stroka, 3), , "Cells(stroka, 3) - Calls in workTime аs Announcement           "
+                                                                    MsgBox Cells(stroka, 12), , "Cells(stroka, 15) - Calls in workTime as Trunk           "
+                                                                    MsgBox "But not change!!!          ", , "But not change!!!          "
+'        Cells(stroka, 3).Value = Cells(stroka, 12)
+        End If
+               
+
+
+'----------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+End Sub
+
+'===================================================================================================================
