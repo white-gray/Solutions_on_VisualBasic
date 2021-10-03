@@ -1,0 +1,20 @@
+”даление пробелов по кра€м во всех €чЄйках страницы
+
+	Sub delSpaxes()
+	Dim lr As Long, lc As Long
+	ActiveSheet.UsedRange.Find("*", , xlValues, xlWhole, , xlPrevious).Select		поиск последней заполненной €чейки
+	lr = ActiveCell.Row																запоминание координат этой €чейки,
+	lc = ActiveCell.Column																 как крайних координат на странице
+	Debug.Print "lr = " + Str(lr)													вывод инфо в терминале. 
+	Debug.Print "lc = " + Str(lc)														ѕросто, чтобы 
+	Debug.Print "----------------------------"											просматривать процесс
+	For q = 1 To lr
+		Debug.Print "q =  " + Str(q)
+		For w = 1 To lc
+			Debug.Print "w =  " + Str(w)
+			Cells(q, w) = Trim(Cells(q, w))											удаление крайних пробелов значени€ и справа, и слева. 
+																						ћожно только справа (RTrim), или только слева (LTrim)
+			Next w
+		Next q
+	Cells(1, 1).Select
+	End Sub

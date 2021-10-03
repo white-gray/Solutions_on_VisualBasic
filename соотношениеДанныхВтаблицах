@@ -1,0 +1,143 @@
+' Данный макрос для файла с двумя (почти) одинаковыми таблицами с именами "atm_fromDB_withoutGeoDBO" и "atm_fromDB_GeoDBO"
+
+' Каждая таблица сортируется по столбцу M (столбец 13)
+' Далее программа отслеживает, чтобы при такой сортировке в таблицах совпадали значения в столбцах B (столбец 2)
+' 	Если значения не совпадают, - программа ищет "верную" строку дальше, и потом в значение "лишних строк" в ячейку колонки M подставляет знак "_", что после сортировки переносит данную строку в конец таблицы'
+
+
+
+Sub оснонаяПрога()
+    Dim namePage, pageName, sign1, sign2 As String
+    
+' опрелеоение сколько строк в каждой рассматриваемой таблице, и в работу (количество повторений) берём меньшее число
+    Dim cuntsNumber, cuntsNumber1, cuntsNumber2 As Long
+    cuntsNumber1 = Sheets("atm_fromDB_GeoDBO").Cells.SpecialCells(xlLastCell).Row
+    cuntsNumber2 = Sheets("atm_fromDB_withoutGeoDBO").Cells.SpecialCells(xlLastCell).Row
+    cuntsNumber = cuntsNumber2
+    If cuntsNumber1 < cuntsNumber2 Then
+        cuntsNumber = cuntsNumber1
+        End If
+    Debug.Print "cuntsNumber = " + Trim(cuntsNumber)
+'-----конец
+
+    Call сортировкаПоКолонкеBegin   ' сортирует данные в обеих рассматриваемых таблицах по столбцу M (эту тему выполняют две подпрограммы)
+    For i = 2 To cuntsNumber Step 1
+        sign1 = Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 2).Value
+        sign2 = Sheets("atm_fromDB_GeoDBO").Cells(i, 2).Value
+    Debug.Print "before step = " + Trim(i) + "   sign1 = " + Trim(sign1) + "   sign2 = " + Trim(sign2)
+        If sign1 <> sign2 Then      					' сравнение значений ячеек B
+    Debug.Print "go to  findAndChange"
+            Call findAndChange(i, sign1, sign2)			' если не совпадает, - вызываеся подпрограмма поиска верной строки, и подставления знака "_" в ячеёку М "лишних" строк
+        End If
+    Debug.Print "     after step = " + Trim(i) + "   sign1 = " + Trim(Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 2).Value) + "   sign2 = " + Trim(Sheets("atm_fromDB_GeoDBO").Cells(i, 2).Value)
+    Next i
+End Sub
+
+' подпрограмма  поиска верной строки
+'	ищется рассматриванием следующей строки поочерёдно в каждой таблице
+'  		и при нахождении, подставляется знак "_" в ячейку М "лишних" строк
+Sub findAndChange(i, sign1, sign2)
+    Debug.Print "in  findAndChange"
+    Dim testLoop
+    testLoop = 1				' какая по счёту "следующая строка" проверяется на совпаление значения ячейки B в текущей строке
+    Do
+' проверка следующей строки в таблице "atm_fromDB_withoutGeoDBO"
+    Debug.Print "testLoop = " + Trim(testLoop)
+        Sheets("atm_fromDB_withoutGeoDBO").Select
+	' мониторинг проверки
+		Debug.Print "     atm_fromDB_withoutGeoDBO  Cells(i + testLoop, 2).Value = " + Trim(Cells(i + testLoop, 2).Value)
+    Debug.Print "     sign2 = " + Trim(sign2)
+    If Cells(i + testLoop, 2).Value = sign2 Then
+        Debug.Print "          1 - равно "
+        End If
+    Debug.Print "        atm_fromDB_withoutGeoDBO  Cells(i + testLoop, 13).Value = " + Trim(Cells(i + testLoop, 13).Value)
+    Debug.Print "           atm_fromDB_GeoDBO  Cells(i, 13).Value = " + Trim(Sheets("atm_fromDB_GeoDBO").Cells(i, 13).Value)
+    If Cells(i + testLoop, 13).Value = Sheets("atm_fromDB_GeoDBO").Cells(i, 13).Value Then
+        Debug.Print "          2 - равно "
+        End If
+    Debug.Print "        atm_fromDB_withoutGeoDBO  Cells(i + testLoop, 14).Value = " + Trim(Cells(i + testLoop, 14).Value)
+    Debug.Print "           atm_fromDB_GeoDBO  Cells(i, 14).Valuee = " + Trim(Sheets("atm_fromDB_GeoDBO").Cells(i, 14).Value)
+    If Cells(i + testLoop, 14).Value = Sheets("atm_fromDB_GeoDBO").Cells(i, 14).Value Then
+        Debug.Print "          3 - равно "
+        End If
+	'-----конец мониторинга проверки
+
+	If Cells(i + testLoop, 2).Value = sign2 And Cells(i + testLoop, 13).Value = Sheets("atm_fromDB_GeoDBO").Cells(i, 13).Value And Cells(i + testLoop, 14).Value = Sheets("atm_fromDB_GeoDBO").Cells(i, 14).Value Then
+			' добавение знака "_" в ячеёке M dj всех "лишних" просмотренный строках
+            For g = i To (i + testLoop - 1)
+                Cells(g, 13).Select
+                Cells(g, 13) = "_" & Cells(g, 13).Value
+                Next g
+            '-----конец  добавение знака "_" в ячеёке M dj всех "лишних" просмотренный строках
+            Call сортировкаПоКолонкеBegin
+            testLoop =  200			' устанавливается такое значение, чтобы цикл (дальше) закончился
+        End If
+'----- конец проверки следующей строки в таблице "atm_fromDB_withoutGeoDBO"
+		
+' проверка следующей строки в таблице "atm_fromDB_GeoDBO"
+        Sheets("atm_fromDB_GeoDBO").Select
+	' мониторинг проверки
+    Debug.Print "     atm_fromDB_GeoDBO  Cells(i + testLoop, 2).Value = " + Trim(Cells(i + testLoop, 2).Value)
+    Debug.Print "     sign1 = " + Trim(sign1)
+    If Cells(i + testLoop, 2).Value = sign1 Then
+        Debug.Print "          1 - равно "
+        End If
+    Debug.Print "        atm_fromDB_GeoDBO  Cells(i + testLoop, 13).Value = " + Trim(Cells(i + testLoop, 13).Value)
+    Debug.Print "           atm_fromDB_withoutGeoDBO  Cells(i, 13).Value = " + Trim(Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 13).Value)
+    If Cells(i + testLoop, 13).Value = Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 13).Value Then
+        Debug.Print "          2 - равно "
+        End If
+    Debug.Print "        atm_fromDB_GeoDBO  Cells(i + testLoop, 14).Value = " + Trim(Cells(i + testLoop, 14).Value)
+    Debug.Print "           atm_fromDB_withoutGeoDBO  Cells(i, 14).Valuee = " + Trim(Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 14).Value)
+    If Cells(i + testLoop, 14).Value = Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 14).Value Then
+        Debug.Print "          3 - равно "
+        End If
+	'-----конец мониторинга проверки
+    If Cells(i + testLoop, 2).Value = sign1 And Cells(i + testLoop, 13).Value = Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 13).Value And Cells(i + testLoop, 14).Value = Sheets("atm_fromDB_withoutGeoDBO").Cells(i, 14).Value Then
+     Debug.Print "          enter If"
+			' добавение знака "_" в ячеёке M dj всех "лишних" просмотренный строках
+			For g = i To (i + testLoop - 1)			
+                Cells(g, 13).Select
+                Cells(g, 13) = "_" & Cells(g, 13).Value
+                Next g
+            '-----конец  добавение знака "_" в ячеёке M dj всех "лишних" просмотренный строках
+			Call сортировкаПоКолонкеBegin
+            testLoop = 200			' устанавливается такое значение, чтобы цикл (дальше) закончился
+        End If
+'----- конец проверки следующей строки в таблице "atm_fromDB_GeoDBO"
+
+        testLoop = testLoop + 1		' если не найдено, - отмечаем следующий круг
+        Loop While testLoop < 25  ' здесь (25) указано максимальное число проверок-поиска верного-совпадающего значения для ячеек рассматриваемых таблиц
+End Sub
+
+' подпрограммы сортировки данных в обеих рассматриваемых таблицах по столбцу M
+Sub сортировкаПоКолонкеBegin()
+    namePage = "atm_fromDB_withoutGeoDBO"
+    Call сортировкаПоКолонкеM(namePage)
+    namePage = "atm_fromDB_GeoDBO"
+    Call сортировкаПоКолонкеM(namePage)
+End Sub
+Sub сортировкаПоКолонкеM(namePage)
+'
+' сортировкаПоКолонкеM Макрос
+'
+    ActiveWorkbook.Worksheets(namePage).AutoFilter.Sort.SortFields.Clear
+    ActiveWorkbook.Worksheets(namePage).AutoFilter.Sort.SortFields.Add _
+        Key:=Range("M1"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption _
+        :=xlSortTextAsNumbers
+    With ActiveWorkbook.Worksheets(namePage).AutoFilter.Sort
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+End Sub
+'-----конец
+
+
+
+
+
+
+
