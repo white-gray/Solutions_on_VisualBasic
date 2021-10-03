@@ -1,0 +1,17 @@
+﻿
+Sub deleteStringIfThereFasSimbols()
+'
+' удаляет строки, где в первой ячейке прописано "Ext/" или "Hunt-toThen" или ничего
+'
+'    ( пришлось запускать несколько раз! )
+'
+
+For i = 1 To 2095 Step 1
+Cells(i, 1).Select
+If Cells(i, 1) = "" Or Cells(i, 1) = "HOP!" Or Cells(i, 1) = "Ext/" Or Cells(i, 1) = "Hunt-toThen" Then
+Selection.EntireRow.Delete
+End If
+Next i
+
+
+End Sub
